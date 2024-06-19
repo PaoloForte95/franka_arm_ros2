@@ -10,11 +10,6 @@ MoveItContoller::MoveItContoller(
 : rclcpp_lifecycle::LifecycleNode(node_name, ns, options), process_active_(false)
 {
 
-    this->declare_parameter(bond::msg::Constants::DISABLE_HEARTBEAT_TIMEOUT_PARAM, true);
-    this->set_parameter(
-    rclcpp::Parameter(
-        bond::msg::Constants::DISABLE_HEARTBEAT_TIMEOUT_PARAM, true));
-
     RCLCPP_INFO(
     get_logger(),
     "\n\t%s lifecycle node launched. \n"
@@ -23,9 +18,7 @@ MoveItContoller::MoveItContoller(
 
     rclcpp::Context::SharedPtr context = get_node_base_interface()->get_context();
 
-    rcl_preshutdown_cb_handle_ = std::make_unique<rclcpp::PreShutdownCallbackHandle>(
-    context->add_pre_shutdown_callback(std::bind(&MoveItContoller::on_rcl_preshutdown, this))
-    );
+ 
 
 }
 
@@ -44,45 +37,6 @@ MoveItContoller::~MoveItContoller()
   }
 }
 
-void MoveItContoller::createBond()
-{
-  RCLCPP_INFO(get_logger(), "Creating bond (%s) to lifecycle manager.", this->get_name());
-
-  bond_ = std::make_unique<bond::Bond>(
-    std::string("bond"),
-    this->get_name(),
-    shared_from_this());
-
-  bond_->setHeartbeatPeriod(0.10);
-  bond_->setHeartbeatTimeout(4.0);
-  bond_->start();
-}
-
-void MoveItContoller::on_rcl_preshutdown()
-{
-  RCLCPP_INFO(
-    get_logger(), "Running rcl preshutdown (%s)",
-    this->get_name());
-
-    if (get_current_state().id() ==
-    lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE)
-  {
-    this->deactivate();
-  }
-
-  if (get_current_state().id() ==
-    lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE)
-  {
-    this->cleanup();
-  }
-
-    RCLCPP_INFO(get_logger(), "Destroying bond (%s) to lifecycle manager.", this->get_name());
-
-    if (bond_) {
-        bond_.reset();
-    }
-}
-
 
 CallbackReturn
 MoveItContoller::on_configure(const rclcpp_lifecycle::State & /*state*/)
@@ -96,7 +50,7 @@ MoveItContoller::on_configure(const rclcpp_lifecycle::State & /*state*/)
     goal_sub_ = create_subscription<geometry_msgs::msg::PoseStamped>("panda_arm_goal", rclcpp::SensorDataQoS(), std::bind(&MoveItContoller::goalCallback, this, std::placeholders::_1));
     rclcpp::NodeOptions node_options;
     node_options.automatically_declare_parameters_from_overrides(true);
-    move_group_node_ = rclcpp::Node::make_shared("move_group_node", node_options);
+    move_group_node_ = rclcpp::Node::make_shared("test_trajectory", node_options);
     gripper_client_node_ = rclcpp::Node::make_shared("gripper_client_node", node_options);
 
     action_client = rclcpp_action::create_client<control_msgs::action::GripperCommand>(gripper_client_node_,"/panda_gripper/gripper_action");
@@ -113,9 +67,6 @@ MoveItContoller::on_activate(const rclcpp_lifecycle::State & /*state*/)
   // Activating main worker
   process_active_ = true;
 
-  // Creating bond connection
-  createBond();
-
   return CallbackReturn::SUCCESS;
 }
 
@@ -125,13 +76,6 @@ MoveItContoller::on_deactivate(const rclcpp_lifecycle::State & /*state*/)
   RCLCPP_INFO(logger_, "Deactivating MoveIt Contoller");
   // Deactivating main worker
   process_active_ = false;
-
-  // Destroying bond connection
-    RCLCPP_INFO(get_logger(), "Destroying bond (%s) to lifecycle manager.", this->get_name());
-
-    if (bond_) {
-        bond_.reset();
-    }
 
   return CallbackReturn::SUCCESS;
 }
@@ -158,15 +102,19 @@ MoveItContoller::on_shutdown(const rclcpp_lifecycle::State & /*state*/)
 
 bool MoveItContoller::moveToGoal(geometry_msgs::msg::Pose goal){
     
-    auto move_group = moveit::planning_interface::MoveGroupInterface(move_group_node_, PLANNING_GROUP);
+    moveit::planning_interface::MoveGroupInterface move_group(move_group_node_, PLANNING_GROUP);
+    moveit::planning_interface::MoveGroupInterface move_group_gripper(
+      move_group_node_, PLANNING_GROUP_GRIPPER);
+    const moveit::core::JointModelGroup *joint_model_group = move_group.getCurrentState()->getJointModelGroup(PLANNING_GROUP);
+    RCLCPP_INFO(logger_, "Planning frame: %s", move_group.getPlanningFrame().c_str());
+    RCLCPP_INFO(logger_, "End effector link: %s", move_group.getEndEffectorLink().c_str());
     
+    RCLCPP_INFO(logger_, "Available Planning Groups:");
     std::copy(move_group.getJointModelGroupNames().begin(),
             move_group.getJointModelGroupNames().end(),
             std::ostream_iterator<std::string>(std::cout, ", "));
 
-    const moveit::core::JointModelGroup *joint_model_group = move_group.getCurrentState()->getJointModelGroup(PLANNING_GROUP);
-    RCLCPP_INFO(logger_, "Planning frame: %s", move_group.getPlanningFrame().c_str());
-    RCLCPP_INFO(logger_, "End effector link: %s", move_group.getEndEffectorLink().c_str());
+    
     auto current_state = move_group.getCurrentState(10);
     
     std::vector<double> joint_group_positions;

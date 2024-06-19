@@ -32,10 +32,7 @@ using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface
 
             virtual ~MoveItContoller();
 
-            /**
-             * @brief Create bond connection to lifecycle manager
-             */
-            void createBond();
+
 
             bool moveToGoal(geometry_msgs::msg::Pose goal);
             bool moveGripper(control_msgs::action::GripperCommand::Goal goal);
@@ -71,12 +68,6 @@ using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface
              */
             CallbackReturn on_shutdown(const rclcpp_lifecycle::State & state) override;
 
-            /**
-             * @brief Perform preshutdown activities before our Context is shutdown.
-             * Note that this is related to our Context's shutdown sequence, not the
-             * lifecycle node state machine.
-             */
-            virtual void on_rcl_preshutdown();
 
             /**
              * @brief Goal callback
@@ -89,9 +80,6 @@ using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface
 
         private:
             rclcpp::Logger logger_{rclcpp::get_logger("MoveItContoller")};
-            std::unique_ptr<rclcpp::PreShutdownCallbackHandle> rcl_preshutdown_cb_handle_{nullptr};
-            // Connection to tell that server is still up
-            std::unique_ptr<bond::Bond> bond_{nullptr};
 
             // @brief Whether main routine is active
             bool process_active_;
