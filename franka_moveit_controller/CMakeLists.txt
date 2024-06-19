@@ -23,6 +23,19 @@ set(library_name ${executable_name}_core)
 
 add_executable(${executable_name} src/main.cpp) #src/pick_place.cpp)
 
+add_executable(fk_main src/fk_main.cpp)
+
+target_include_directories(fk_main
+PUBLIC include)
+
+ament_target_dependencies(fk_main
+ament_cmake
+rclcpp
+rclcpp_action
+moveit_core
+moveit_ros_planning
+moveit_ros_planning_interface
+control_msgs)
 
 add_library(${library_name} SHARED
   src/moveit_controller.cpp
@@ -55,7 +68,7 @@ install(TARGETS ${library_name}
   RUNTIME DESTINATION bin
 )
 
-install(TARGETS ${executable_name}
+install(TARGETS ${executable_name} fk_main
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
